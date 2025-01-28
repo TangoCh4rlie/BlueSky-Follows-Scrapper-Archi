@@ -1,0 +1,36 @@
+version : "3"
+
+services:
+  master:
+    build:
+      dockerfile: master/Dockerfile
+      context: master
+    networks:
+      - master_slave
+  
+  slave:
+    build:
+      dockerfile : slave/Dockerfile
+      context: slave
+    networks:
+      - master_slave
+      - cache
+    volumes:
+      - slave_exports:/exports
+    environment:
+      - SLAVE_ID=1
+      - MASTER_URL=master
+      - REDIS_HOSTNAME=redis_cache
+      - OUTPUT_PATH=/exports
+    
+  redis_cache:
+    image: redis
+    networks:
+      - cache
+
+networks:
+  cache:
+  master_slave:
+
+volumes:
+  slave_exports:
