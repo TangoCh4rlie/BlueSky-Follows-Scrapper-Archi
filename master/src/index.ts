@@ -30,7 +30,7 @@ function getUserFromQueue(number: number): string[] {
 }
 
 app.post('/process/:workerId', async (c) => {
-  const workerId = c.req.param('id')
+  const workerId = c.req.param('workerId')
 
   if (workerId === undefined) {
     return c.json({ message: 'workerId in param is mandatory' }, 422)
