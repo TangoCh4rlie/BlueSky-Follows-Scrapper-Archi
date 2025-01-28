@@ -45,7 +45,7 @@ app.post('/process/:workerId', async (c) => {
   const batchUsers = getUserFromQueue(nbUsers)
 
   if (batchUsers.length === 0) {
-    return c.json(204)
+    return c.status(204)
   }
 
   workerActive.set(workerId, true)
