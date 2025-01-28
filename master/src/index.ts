@@ -36,7 +36,7 @@ app.post('/process/:workerId', async (c) => {
     return c.json({ message: 'workerId in param is mandatory' }, 422)
   }
 
-  const nbUsers = parseInt(c.req.param('nbUsers') || '10')
+  const nbUsers = parseInt(c.req.param('nbUsers') || '1')
   const body = await c.req.json() as string[]
 
   workerActive.set(workerId, false)
