@@ -1,12 +1,10 @@
 
-FROM python:3.10
+FROM python:3.11
 
 WORKDIR /usr/src/app
 
-COPY ./Pipfile ./Pipfile.lock ./
+COPY ./ ./
 
 RUN pip install pipenv && pipenv install --system --deploy
 
-COPY slave .
-
-CMD ["python", "-m", "slave:main"]
+CMD ["python", "-m", "slave.main"]

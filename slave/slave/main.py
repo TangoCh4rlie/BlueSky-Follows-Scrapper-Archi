@@ -5,19 +5,21 @@
      - MASTER_URL
      - REDIS_HOSTNAME
      - OUTPUT_PATH
+     - SEED (optionnal)
 '''
 
 import io
-import json
+import logging
+import time
 
 import redis
 from construct import Int32ul
 import requests
 
 from slave.constants import MASTER_URL, REDIS_HOSTNAME, \
-    SLAVE_ID, VERTICE_ID_BIT_SIZE, OUTPUT_PATH
+    SLAVE_ID, VERTICE_ID_BIT_SIZE, OUTPUT_PATH, MAX_NB_TREATED
 
-from slave.models import Follow
+logging.basicConfig(level=logging.DEBUG)
 
 mappings : dict[str, int] = {}
 edges : set[tuple[int, int]] = set()
@@ -37,6 +39,7 @@ def get_work() -> str:
     )
 
     if not req.ok:
+        logging.error(f"{req.status_code} - {req.text}")
         exit(1)
     return req.json()[0]
 
@@ -63,11 +66,14 @@ def get_username_id(username : str) -> int:
         return mappings[username]
     else:
         # Interrogate redis
-        possible_id : int | None = r.get(username)
+        possible_id : bytes | None = r.get(username)
         if possible_id is None:
             possible_id = generate_new_id()
             r.set(username, possible_id)
-            mappings[username] = possible_id
+        elif isinstance(possible_id, bytes):
+            possible_id = int(possible_id)
+        mappings[username] = possible_id
+        
         return possible_id
 
 def get_follows(user: str) -> list[str]:
@@ -83,6 +89,9 @@ def get_follows(user: str) -> list[str]:
         while not res_ok:
             response = requests.get(url)
             res_ok = response.ok
+            if not response.ok:
+                logging.warning("Received a ")
+                time.sleep(1)
         
         result = response.json()
 
@@ -97,25 +106,24 @@ def get_follows(user: str) -> list[str]:
 
     return follows
 
-
 def work(username : str) -> set[str]:
     '''
         Given a `username`
     '''
-    follows : set[str] = get_follows(username)
+    follows : list[str] = get_follows(username)
     follows_ids = [get_username_id(follower_username) for follower_username in follows]
     followed_id = get_username_id(username)
 
     for follower_id in follows_ids:
         edges.add((follower_id, followed_id))
-    return follows
+    return set(follows)
 
-def save_edges(f : io.BytesIO):
+def save_edges(f : io.BufferedWriter):
     for u, v in edges: # Todo optimize with bigger buffers
         f.write(Int32ul.build(u))
         f.write(Int32ul.build(v))
 
-def save_mapping(f : io.BytesIO):
+def save_mapping(f : io.BufferedWriter):
     for username, id in mappings.items():
         if (id >> VERTICE_ID_BIT_SIZE) != SLAVE_ID:
             continue
@@ -123,14 +131,19 @@ def save_mapping(f : io.BytesIO):
         f.write(username.encode(encoding="ascii"))
 
 if __name__ == "__main__":
-    while True:
+    logging.info(f"Starting the slave {SLAVE_ID}")
+
+    for _ in range(MAX_NB_TREATED):
         try:
             answer_work(work(get_work()))
-        except Exception:
+        except Exception as e:
+            logging.error(e)
             break
-
+    
+    logging.info(f"Exited the work->solve->work loop, exporting to files")
     with open(OUTPUT_PATH + f"/{SLAVE_ID}.edges", "wb") as f:
         save_edges(f)
     
     with open(OUTPUT_PATH + f"/{SLAVE_ID}.mappings", "wb") as f:
         save_mapping(f)
+    logging.info(f"Finished exporting, stopping slave {SLAVE_ID}")

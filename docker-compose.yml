@@ -1,27 +1,29 @@
-version : "3"
-
 services:
   master:
     build:
-      dockerfile: master/Dockerfile
+      dockerfile: Dockerfile
       context: master
     networks:
       - master_slave
   
   slave:
     build:
-      dockerfile : slave/Dockerfile
+      dockerfile : Dockerfile
       context: slave
     networks:
       - master_slave
       - cache
     volumes:
       - slave_exports:/exports
+    depends_on:
+      - redis_cache
+      - master
     environment:
       - SLAVE_ID=1
-      - MASTER_URL=master
+      - MASTER_URL=http://master:3000
       - REDIS_HOSTNAME=redis_cache
       - OUTPUT_PATH=/exports
+      - MAX_NB_TREATED=2
     
   redis_cache:
     image: redis
@@ -34,3 +36,8 @@ networks:
 
 volumes:
   slave_exports:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: results
